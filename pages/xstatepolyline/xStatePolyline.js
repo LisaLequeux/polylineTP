@@ -1,5 +1,5 @@
 import Konva from "konva";
-import { createMachine, interpret } from "xstate";
+import { actions, createMachine, interpret } from "xstate";
 
 
 const stage = new Konva.Stage({
@@ -16,11 +16,50 @@ let polyline // La polyline en cours de construction;
 
 const polylineMachine = createMachine(
     {
-        /** @xstate-layout N4IgpgJg5mDOIC5gF8A0IB2B7CdGgAcsAbATwBkBLDMfEI2SgF0qwzoA9EBaANnVI9eAOgAM4iZMkB2ZGnokK1MMMoRitJAsYs2nRABYATAMQAOAIzCD0gJwXetgwGZezgw9ty5QA */
+        /** @xstate-layout N4IgpgJg5mDOIC5QAcD2AbAngGQJYDswA6XCdMAYgFkB5AVQGUBRAYWwEkWBpAbQAYAuohSpYuAC65U+YSAAeiAIx8ALEQBMilQFYVAZnXqAbAHYTigByKANCExK9RoiotHXLk3z7qAnNqMAvgG2aFh4hEQQAE4AhgDuBFDU9My0AGpM-EJIIGhiktKyCggqRj5EFiZu2iY+Jup8iuq6tvYIWooVnio+ZQa6RoHBuRg4BMTR8YkUAEIxAMYA1rDIC2BZsnkSUjI5xaXqRI4+jYrKZToWeq2IALRaRL0W-galPXp8eipBIaPhE7EEvgkkx8OIwFENjktgVdqBinwbgg+D8RmFxpFAdNaIxWBxuFCRPkdkUlGUiPVtF9vD4LH4LFckbcrBoeuoTFSVHxdOo9CZUaExhFJkCQbB5jFkOtBJtRNtCntEMY1HxKsYfD5eV91BYkZZyioObz6l8rtpuUFhvhUBA4LL0YRZcSFfC7mc9BpzaZ2XVml51EzFG4KWyOccGTV+cNBf8SGQwE75XD5HcjNpPXxvbVKf6kZUiKpVUYVJoLHw-LSBX8MSLEonYaSEOy+BSTK40-19CoVHmTAWue5S+XtJXLUA */
         id: "polyLine",
         initial: "idle",
         states : {
             idle: {
+                on: {
+                    MOUSECLICK: {
+                        target: "drawing",
+                        actions: ["createLine"]
+                    }
+                }
+            },
+
+            drawing: {
+                on: {
+                    MOUSEMOVE: {
+                        target: "drawing",
+                        actions: ["setLastPoint"],
+                        internal: true
+                    },
+
+                    Backspace: {
+                        target: "drawing",
+                        actions: ["removeLastPoint"],
+                        internal: true
+                    },
+
+                    Enter: {
+                        target: "idle",
+                        actions: ["saveLine"],
+                        cond: "plusDeDeuxPoints"
+                    },
+
+                    MOUSECLICK: {
+                        target: "drawing",
+                        actions: ["addPoint"],
+                        internal: true,
+                        cond: "pasPlein"
+                    }, 
+                    Escape: {
+                        target: "idle",
+                        actions: ["abandon"]
+                    }
+                }
             }
         }
     },
@@ -67,24 +106,27 @@ const polylineMachine = createMachine(
             // Abandonner le tracé de la polyline
             abandon: (context, event) => {
                 // Supprimer la variable polyline :
+                polyline.remove(layer.batchDraw());
                 
             },
             // Supprimer le dernier point de la polyline
             removeLastPoint: (context, event) => {
                 const currentPoints = polyline.points(); // Get the current points of the line
                 const size = currentPoints.length;
-                const provisoire = currentPoints.slice(size - 2, size); // Le point provisoire
-                const oldPoints = currentPoints.slice(0, size - 4); // On enlève le dernier point enregistré
-                polyline.points(oldPoints.concat(provisoire)); // Set the updated points to the line
+                if(size>4){
+                const provisoire = currentPoints.slice(0, size-2); // Le point provisoire
+                //const oldPoints = currentPoints.slice(0, size - 4); // On enlève le dernier point enregistré
+                polyline.points(provisoire); // Set the updated points to the line
                 layer.batchDraw(); // Redraw the layer to reflect the changes
+                }
             },
         },
         guards: {
             // On peut encore ajouter un point
             pasPlein: (context, event) => {
                 // Retourner vrai si la polyline a moins de 10 points
+                return polyline.points().length <= (MAX_POINTS*2);
                 // attention : dans le tableau de points, chaque point est représenté par 2 valeurs (coordonnées x et y)
-                
             },
             // On peut enlever un point
             plusDeDeuxPoints: (context, event) => {
